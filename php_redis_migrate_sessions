@@ -4,7 +4,7 @@
 ## @Synopsis Migrate php sessions from disk to redis using mass insertion
 ## @Copyright Copyleft 2013 renasboy <renasboy@gmail.com>
 ## @License GPL v3
-## 
+##
 ## Reads session stored in $php_session_dir and transfer the contents to
 ## redis database using redis-cli pipe mode and redis mass insertion protocol.
 ## Sessions are stored with the $php_session_prefix as prefix.
@@ -20,13 +20,26 @@ php_session_dir=/var/lib/php5
 # this is the php session prefix inside redis
 php_session_prefix=PHPREDIS_SESSION
 
+lowercase(){
+    echo "$1" | sed "y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/"
+}
+
+# Detect the platform
+OS=`lowercase \`uname\``
+
 # this is what happens during the find loop underneath
 # when the script is called with php session file as parameter
 # it outputs the redis protocol for mass insertion
 if test -n "$1" -a -f "$1"; then
     # generate the session id cause we need to get the length of it
     session_id=$php_session_prefix:$(basename ${1/sess_/})
-    echo -n -e "*3\r\n\$3\r\nSET\r\n\$${#session_id}\r\n$session_id\r\n\$$(stat -c"%s" $1)\r\n$(sed 's/\\/\\\\/g' $1)\r\n"
+    if [[ "$OS" == "darwin" ]]; then
+      # OS X
+      echo -n -e "*3\r\n\$3\r\nSET\r\n\$${#session_id}\r\n$session_id\r\n\$$(stat -f%z $1)\r\n$(sed 's/\\/\\\\/g' $1)\r\n"
+    else
+      # non OS X
+      echo -n -e "*3\r\n\$3\r\nSET\r\n\$${#session_id}\r\n$session_id\r\n\$$(stat -c"%s" $1)\r\n$(sed 's/\\/\\\\/g' $1)\r\n"
+    fi
     exit 0
 fi
 
